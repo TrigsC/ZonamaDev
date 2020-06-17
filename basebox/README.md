@@ -1,3 +1,13 @@
+# FIRST THINGS FIRST
+
+git clone
+open in sublime
+CTRL + SHIFT + F
+find github.com/Zonama/
+Replace github.com/TrigsC/
+in bootstrap.sh change theanswer to TrigsC
+Save all files
+
 # BaseBox
 
 Tools to build and publish a new basebox for the ZonamaDev environment
