@@ -45,7 +45,7 @@ Watch for instructions.
 
 Type:
 ````
-git clone -b release-1.5 https://github.com/Zonama/ZonamaDev.git
+git clone -b release-1.5 https://github.com/TrigsC/ZonamaDev.git
 cd ZonamaDev/fasttrack
 ./setup.sh
 ````
