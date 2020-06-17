@@ -48,7 +48,7 @@ cat << ! > /lib/systemd/system/rc.fasttrack.service
 #
 [Unit]
 Description=ZonamaDev Boot Script
-Documentation=https://github.com/Zonama/ZonamaDev
+Documentation=https://github.com/TrigsC/ZonamaDev
 Before=lightdm.service
 After=network-online.target auditd.service nss-lookup.target
 
