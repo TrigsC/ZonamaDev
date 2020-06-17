@@ -874,7 +874,7 @@ post_debug()
                 ghi config --auth $ghuser
             fi
             echo "** Posting Issue..."
-            local issue=$(ghi open --label "type/automated-help" -m "$(post_debug_body)" -- Zonama/ZonamaDev 2>&1)
+            local issue=$(ghi open --label "type/automated-help" -m "$(post_debug_body)" -- TrigsC/ZonamaDev 2>&1)
             echo "** Looking for issue id"
             local issue_num=$(echo "$issue"|sed -ne '1s!^#\([0-9][0-9]*\):.*!\1!p')
 
