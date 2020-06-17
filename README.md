@@ -2,6 +2,16 @@
 
 Zonama - The living planet, or in our world an easily deployed development environment for working on the server code of swgemu's Core3 (https://www.swgemu.com/)
 
+# FIRST THINGS FIRST
+
+* git clone
+* open in sublime
+* CTRL + SHIFT + F
+* find github.com/Zonama/
+* Replace github.com/TrigsC/
+* in bootstrap.sh change theanswer to TrigsC
+* Save all files
+
 ## Branches / Versions
 
 In general you should not worry about what branch you're on.  The bootstrap script will do this for you. That said knowledge is power so here's a summary of the branches in this repo:
