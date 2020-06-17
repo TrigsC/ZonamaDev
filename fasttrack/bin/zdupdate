@@ -42,7 +42,7 @@ check_basebox() {
         echo "Basebox is out of date"
         alert "ZonamaDev Update Status" "Your Virtual Machine is out of date.\n\nPlease see the ZonamaDev wiki for upgrade instructions.\n" 0
         if [ -x $BROWSER ]; then
-            $BROWSER "https://github.com/Zonama/ZonamaDev/wiki/NOTICE:-Virtual-Machine-Operating-System-out-of-date"
+            $BROWSER "https://github.com/TrigsC/ZonamaDev/wiki/NOTICE:-Virtual-Machine-Operating-System-out-of-date"
         fi
         return 1
     fi

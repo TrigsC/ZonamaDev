@@ -44,7 +44,7 @@ Watch for instructions.
 
 Type:
 ````
-git clone https://github.com/Zonama/ZonamaDev.git
+git clone https://github.com/TrigsC/ZonamaDev.git
 cd ZonamaDev/fasttrack
 ./setup.sh
 ````
@@ -152,4 +152,4 @@ The next time you do vagrant reload or vagrant up these settings will take effec
 
 ### For More Information
 
-Please see [The Wiki](https://github.com/Zonama/ZonamaDev/wiki)
+Please see [The Wiki](https://github.com/TrigsC/ZonamaDev/wiki)

@@ -44,11 +44,11 @@ echo "Using systemd for rc.fasttrack"
 cat << ! > /lib/systemd/system/rc.fasttrack.service
 # This file is part of ZonamaDev
 #
-# See https://github.com/Zonama/ZonamaDev for more details
+# See https://github.com/TrigsC/ZonamaDev for more details
 #
 [Unit]
 Description=ZonamaDev Boot Script
-Documentation=https://github.com/Zonama/ZonamaDev
+Documentation=https://github.com/TrigsC/ZonamaDev
 Before=lightdm.service
 After=network-online.target auditd.service nss-lookup.target
 

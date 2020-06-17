@@ -355,7 +355,7 @@ function get_auth_user()
 end
 
 function updateAccount(accountID)
-    -- See: https://github.com/TheAnswer/Core3/blob/unstable/MMOCoreORB/src/server/login/account/AccountImplementation.cpp#L29
+    -- See: https://github.com/TrigsC/Core3/blob/unstable/MMOCoreORB/src/server/login/account/AccountImplementation.cpp#L29
     local result, err, errno, sqlstate = db_query(
     	"SELECT a.active, a.admin_level, "
 	.. "IFNULL((SELECT b.reason FROM account_bans b WHERE b.account_id = a.account_id AND b.expires > UNIX_TIMESTAMP() ORDER BY b.expires DESC LIMIT 1), ''), "

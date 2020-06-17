@@ -20,7 +20,7 @@ Right click in desired directory -> Bit Bash
 #### Build the box
 
 ```bash
-git clone https://github.com/Zonama/ZonamaDev.git
+git clone https://github.com/TrigsC/ZonamaDev.git
 cd ZonamaDev/basebox
 ./build.sh
 ```
