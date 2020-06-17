@@ -15,18 +15,18 @@ In general you should not worry about what branch you're on.  The bootstrap scri
 #### Minimum requirements
 - Virtualization enabled cpu (Check your BIOS if virtualbox fails to boot box)
 - 64 Bit Host
-- 2 Host Cores
+- 4 Host Cores
 - 6 Gigs Host Ram
 - Dynamically sized 40G HD (Approx 15G on first boot) (Usually $HOME/ZonamaDev)
 - 2.5Gb in your $HOME directory for base box image (On windows this is usually C:\ )
-- **Guest must be configured for at least 2Gb Ram, 128Mb Video Memory and 2 Cores**
+- **Guest must be configured for at least 3Gb Ram, 128Mb Video Memory and 2 Cores**
 
 ### Fast Start
 
 #### Downloads
 * [Github's Git for Windows](https://git-for-windows.github.io)
 * [VirtualBox v5.2.14 or greater](https://www.virtualbox.org/wiki/Downloads)
-* [Windows Management Framework 5.1](https://www.microsoft.com/en-us/download/details.aspx?id=54616)
+* [Windows Management Framework 5.1](https://www.microsoft.com/en-us/download/details.aspx?id=54616) (Only required for Win7 hosts; included in Win10)
 * [Vagrant v2.1.2 or greater](https://www.vagrantup.com/downloads.html)
 
 #### Bootstrap

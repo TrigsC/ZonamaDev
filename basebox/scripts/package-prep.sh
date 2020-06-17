@@ -94,20 +94,26 @@ fi
 # If we made it this far time to start cleanup for packaging...
 #------------------------------------------------------------------------------
 
-##############
-## STOP GUI ##
-##############
-echo ">> Stop lightdm"
-service lightdm stop
+###################
+## STOP SERVICES ##
+###################
+echo ">> Stop services"
+(
+    set -x
+    service lightdm stop
+    service vboxadd stop # Trying to avoid VM in abort state at shutdown
+    service mysql stop
+)
+
 sleep 5
 
 ##########################
 ## KILL EVERYTHING ELSE ##
 ##########################
 echo ">> Stop ${ZDUSER} processes"
-ps -fu ${ZDUSER} | awk 'NR > 1 && $3 == 1 { print $2 }' | xargs -t kill
+ps -fu ${ZDUSER} | awk 'NR > 1 && $3 == 1 { print $2 }' | xargs --no-run-if-empty -t kill
 sleep 2
-ps -fu ${ZDUSER} | awk 'NR > 1 && $3 == 1 { print $2 }' | xargs -t kill -9
+ps -fu ${ZDUSER} | awk 'NR > 1 && $3 == 1 { print $2 }' | xargs --no-run-if-empty -t kill -9
 sleep 2
 echo ">> Remaining ${ZDUSER} processes:"
 ps -fu ${ZDUSER} | sed 's/^/>> /'
@@ -121,13 +127,30 @@ if [ -x /usr/bin/convert ]; then
     echo ">> Branding bootscreen with:"
     echo ">> ** ${line1}"
     echo ">> ** ${line2}"
-    convert /usr/share/images/desktop-base/lines-grub.png -gravity southeast ${ZDHOME}/Pictures/logo_yellow.png'[45%]' -geometry +0+5 -composite \
-        -gravity center -antialias -font Helvetica-Bold \
-        -pointsize 22 -fill black -annotate +1+206 "${line1}" -annotate +2+207 "${line1}" -fill gold -annotate +0+205 "${line1}" \
-        -pointsize 12 -fill black -annotate +1+226 "${line2}" -annotate +2+227 "${line2}" -fill grey -annotate +0+225 "${line2}" \
-        ${ZDHOME}/Pictures/swgemu-grub.png
-    sed -i -e '$ a GRUB_BACKGROUND="'"${ZDHOME}"'/Pictures/swgemu-grub.png"' -e '/GRUB_BACKGROUND/d' /etc/default/grub
-    /usr/sbin/update-grub
+    srcimg=''
+    for i in '/usr/share/images/desktop-base/lines-grub.png' '/usr/share/images/desktop-base/desktop-grub.png'
+    do
+        if [ -f "$i" ]; then
+            srcimg="$i"
+            break
+        fi
+    done
+    if [ -n "$srcimg" ]; then
+        convert "$srcimg" -gamma 0.6 -gravity southeast ${ZDHOME}/Pictures/logo_yellow.png'[45%]' -geometry +0+5 -composite \
+            -gravity center -antialias -font Helvetica-Bold \
+            -pointsize 22 -fill black -annotate +1+206 "${line1}" -annotate +2+207 "${line1}" -fill gold -annotate +0+205 "${line1}" \
+            -pointsize 12 -fill black -annotate +1+226 "${line2}" -annotate +2+227 "${line2}" -fill grey -annotate +0+225 "${line2}" \
+            ${ZDHOME}/Pictures/swgemu-grub.png
+        if [ -f /usr/share/desktop-base/grub_background.sh ]; then
+            sed -i -e "/^WALLPAPER/s@=.*@=${ZDHOME}/Pictures/swgemu-grub.png@" /usr/share/desktop-base/grub_background.sh
+            sed -i -e '/GRUB_BACKGROUND/d' -e '/^GRUB_CMDLINE_LINUX_DEFAULT/s/.*/GRUB_CMDLINE_LINUX_DEFAULT=""/' /etc/default/grub
+        else
+            sed -i -e '$ a GRUB_BACKGROUND="'"${ZDHOME}"'/Pictures/swgemu-grub.png"' -e '/GRUB_BACKGROUND/d' -e '/^GRUB_CMDLINE_LINUX_DEFAULT/s/.*/GRUB_CMDLINE_LINUX_DEFAULT=""/' /etc/default/grub
+        fi
+        /usr/sbin/update-grub
+    else
+        echo -e "**************************************************************************************\n** WARNING: UNABLE TO FIND SOURCE GRUB BACKGROUND IMAGE, WILL NOT BRAND BOOT SCREEN **\n**************************************************************************************"
+    fi
 fi
 
 #####################
@@ -177,17 +200,26 @@ cp -vr /etc/skel/. ${ZDHOME}
 ########################
 ## Stop all the noise ##
 ########################
-service vboxadd stop
-service mysql stop
 service syslog stop
 ${ZDHOME}/server/openresty/nginx/sbin/nginx -s stop > /dev/null 2>&1
 
 # Make sure VBox service really stops
-vbpid=$(cat /var/run/vboxadd-service.pid 2> /dev/null)
+vbpid=$(cat /var/run/vboxadd-service.sh 2> /dev/null)
 
-[ -n "$vbpid" ] && kill -9 $vbpid
+if [ -n "$vbpid" ]; then
+    echo -n ">> Waiting for vbox to stop on pid ${vbpid}"
 
-sleep 5
+    for i in 1 2 3 4 5
+    do
+        kill -0 $vbpid && break
+        echo -n "."
+        sleep 1
+    done
+
+    kill -9 $vbpid && echo "killed ${vbpid}"
+
+    echo
+fi
 
 ps -fu ${ZDUSER}
 
@@ -227,6 +259,17 @@ echo '{ "build_version": "'"${version}"'", "build_timestamp": '"${build_timestam
 # Ok let these run on first boot of new fasttrack image
 zdcfg clear-flag suspend_devsetup
 zdcfg clear-flag suspend_fasttrack
+
+##############################################
+## Make sure box starts on ZONAMADEV_BRANCH ##
+##############################################
+(
+    set -x
+    cd ${ZDHOME}/ZonamaDev
+    git checkout ${ZONAMADEV_BRANCH:-master}
+    git pull
+    git rev-parse --abbrev-ref HEAD
+)
 
 #####################
 ## Fix permissions ##

@@ -1,3 +1,4 @@
 set print asm-demangle on
 set pagination off
+python gdb.events.exited.connect(lambda x : gdb.execute("quit"))
 run

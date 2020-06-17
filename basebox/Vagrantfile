@@ -9,9 +9,8 @@
 plugins_installed = false
 
 [
-  { :name => "vagrant-vbguest", :version => ">= 0.11.0" },
+  { :name => "vagrant-vbguest", :version => ">= 0.12.0" },
   { :name => "vagrant-reload", :version => ">= 0.0.1" },
-  { :name => "vagrant-triggers", :version => ">= 0.5.0" }
 ].each do |plugin|
   if not Vagrant.has_plugin?(plugin[:name], plugin[:version])
     # raise "#{plugin[:name]} #{plugin[:version]} is required. Please run `vagrant plugin install #{plugin[:name]}`"
@@ -48,7 +47,9 @@ Vagrant.configure(2) do |config|
 
   # Base Box
   #config.vm.box = "debian/jessie64"
-  config.vm.box = "bento/debian-8.5"
+  #config.vm.box = "bento/debian-8.5"
+  config.vm.box = "bento/debian-9.5"
+  config.vm.box_version = "201808.24.0"
 
   # Setup port forwarding
   config.vm.network "forwarded_port", guest: 44480,  host: 44480
@@ -84,7 +85,7 @@ Vagrant.configure(2) do |config|
 
   [ "vmware_fusion", "vmware_workstation", "virtualbox" ].each do |provider|
     config.vm.provider provider do |v|
-      v.name = "swgemudev-deb-jessie-" + Time.now.to_i.to_s
+      v.name = "swgemudev-basebox-" + Time.now.to_i.to_s
       v.memory = "4096"
       v.cpus = 4
       v.gui = true
@@ -93,6 +94,7 @@ Vagrant.configure(2) do |config|
         v.customize ["modifyvm", :id, "--accelerate3d", "off"]
         v.customize ["modifyvm", :id, "--accelerate2dvideo", "on"]
         v.customize ["modifyvm", :id, "--vram", "128"]
+        v.customize ["modifyvm", :id, "--audio", "null"]
         v.customize 'post-boot', ["controlvm", :id, "setvideomodehint", "1280", "720", "24"]
 	# Will this make it install faster?
 	# see https://github.com/mitchellh/vagrant/issues/1807
@@ -122,17 +124,18 @@ Vagrant.configure(2) do |config|
   end
 
   zonamadev_url=%x[source #{File.dirname(__FILE__)}/../common/global.config;echo $ZONAMADEV_URL].strip
+  zonamadev_branch=%x[git rev-parse --abbrev-ref HEAD].strip
   # Execute firstboot.sh
   config.vm.provision :shell, name: "firstboot", run: "always", inline: <<-SHELL
     if [ ! -f "ZonamaDev/basebox/scripts/firstboot" ]; then
       echo "** Fresh Guest **"
       apt-get update
       apt-get -y install git moreutils ethtool
-      ethtool -K eth0 gro off
-      git clone #{zonamadev_url}
+      ethtool -K eth0 gro off || ethtool -K enp0s3 gro off
+      git clone -b #{zonamadev_branch} #{zonamadev_url}
     else
       echo "** Existing Guest **"
-      pushd ZonamaDev;git pull;popd
+      pushd ZonamaDev;git pull;git checkout #{zonamadev_branch} || true;popd
     fi
     exec ZonamaDev/basebox/scripts/firstboot
   SHELL
@@ -144,17 +147,9 @@ Vagrant.configure(2) do |config|
     # Tell them to be patient!
     config.vm.provision :shell, name: "firstboot.sh", inline: <<-SHELL
 	chvt 8
-	ethtool -K eth0 gro off
+        ethtool -K eth0 gro off || ethtool -K enp0s3 gro off
 	echo "** Please wait while provisioning continues **" > /dev/console
     SHELL
-
-    # Postponed vbguest, run it now...
-    # config.vm.provision :host_shell, inline: "vagrant vbguest --do install"
-    config.vm.provision :trigger, :force => true do |trigger|
-      trigger.fire do
-	run "vagrant vbguest --do install"
-      end
-    end
   end
 
   # Enable Graphical Boot

@@ -24,12 +24,13 @@
       </div>
       <div class="control-buttonbar">
         <button id='control-start' ng-click='serverCommand("start")' class="control-button"><i class="fa fa-play"></i><br>START</button>
-        <button id='control-stop' ng-click='serverCommand("stop")' class="control-button"><i class="fa fa-power-off"></i></br>STOP</button>
+        <button id='control-shutdown' ng-click='serverCommand("send&nowait=1&arg1=shutdown 0")' class="control-button"><i class="fa fa-power-off"></i></br>SHUTDOWN</button>
         <button id='control-status' ng-click='serverCommand("status")' class="control-button"><i class="fa fa-question-circle"></i></br>STATUS</button>
         <button id='control-backup' ng-click='serverCommand("backup")' class="control-button"><i class="fa fa-floppy-o"></i></br>BACKUP</button>
         <button id='control-latest' ng-click='serverCommand("latest")' class="control-button"><i class="fa fa-code-fork"></i></br>LATEST</button>
         <button id='control-build' ng-click='serverCommand("build")' class="control-button"><i class="fa fa-gavel"></i></br>BUILD</button>
         <button id='control-version' ng-click='serverCommand("version")' class="control-button"><i class="fa fa-info-circle"></i></br>VERSION</button>
+        <button id='control-kill' ng-click='serverCommand("kill")' class="control-button"><i class="fa fa-ambulance"></i></br>KILL</button>
         <form ng-submit='sendCommand("send")'>
           <button id='control-send' type="submit" ng-click='serverCommand("send")' class="control-button"><i class="fa fa-comment"></i></br>SEND</button>
           <div class="control-send-text" ng-show="pendingSend">

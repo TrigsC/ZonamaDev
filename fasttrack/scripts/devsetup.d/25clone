@@ -140,45 +140,14 @@ check_repos() {
 
 make_links() {
     msg "Make links"
-    # newer engine has Makefile that sets up the lib and ildc
+    # Remove PublicEngine if it exists, remove broken symlinks, update engine3 git submodule
     ( set -x
-        cd PublicEngine
-        git pull
-        cd MMOEngine
-        rm -f lib/unix/libengine3.a
-        make
-    )
-
-    ( set -x
-	rm -f MMOCoreORB MMOEngine Core3/MMOEngine
-	[ -d Core3 ] && (cd $PWD/Core3;ln -s ../PublicEngine/MMOEngine .)
-	[ -d PublicEngine ] && ln -s PublicEngine/MMOEngine .
-	[ -d Core3 ] && ln -s Core3/MMOCoreORB .
-	if [ -f PublicEngine/MMOEngine/bin/idlc -a ! -x /usr/local/bin/idlc ]; then
-	    (echo export CLASSPATH=$PWD/PublicEngine/MMOEngine/bin/idlc.jar;cat PublicEngine/MMOEngine/bin/idlc) | sudo tee /usr/local/bin/idlc
-	    sudo chmod 755 /usr/local/bin/idlc
+	if [ -d PublicEngine ]; then
+		rm -fr PublicEngine Core3/MMOEngine
+		cd Core3
+                git submodule update --recursive
 	fi
     )
-
-    local englib=PublicEngine/MMOEngine/lib/unix/libengine3.a
-
-    if [ ! -L $englib ]; then
-	echo "Setup unix library link"
-	mkdir -p PublicEngine/MMOEngine/lib/unix > /dev/null 2>&1
-	(
-	    cd PublicEngine/MMOEngine/lib/unix
-	    if [ $(uname -s) = "Darwin" ]; then
-		ln -s ../lion64/libengine3.a
-	    else
-	    case $(uname -m) in
-		x86_64 ) ln -s ../linux64/libengine3.a ;;
-		i386 ) ln -s ../linux32/libengine3.a ;;
-	    esac
-	    fi
-	)
-    fi
-
-    echo "Using engine library: $(readlink $englib)"
 }
 
 setup_gitattributes() {

@@ -24,5 +24,9 @@ mysql -uroot -e "SHOW DATABASES" > /dev/null 2>&1 || error "Mysql password is no
 
 mysql -uroot -ve "DROP DATABASE swgemu" > /dev/null 2>&1 && echo "Dropped existing swgemu database"
 
+# Need old auth behavior for Core3 and all the scripts to work properly
+# See https://mariadb.com/kb/en/mariadb/unix_socket-authentication-plugin/
+mysql -uroot -ve "UPDATE mysql.user SET plugin = 'mysql_native_password' WHERE user = 'root' AND plugin = 'unix_socket';FLUSH PRIVILEGES;" && echo "** Disabled unix_socket auth for root"
+
 # fasttrack/scripts/rc.fasttrack will take it from here..
 echo "Mysql is ready for rc.fasttrack"

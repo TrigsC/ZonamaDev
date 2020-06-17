@@ -31,13 +31,15 @@ main() {
     mktarball default-config.tar.gz \
         .config/google-chrome/ \
         .config/xfce4/ \
+        .config/dconf/user \
         .gnome/apps/ \
         .mozilla/firefox \
-        .xscreensaver \
         Pictures/3073-starwars-galaxies-002-ilhrq.jpg \
-        Pictures/logo_yellow.png \
-        eclipse/configuration/config.ini \
-        workspace/.metadata/.plugins/org.eclipse.e4.workbench/workbench.xmi
+        Pictures/logo_yellow.png
+
+    # Eclipse config changes a lot from version to version, not safe to have it in tar file -- Karl 07/02/2017
+    # eclipse/configuration/config.ini \
+    # workspace/.metadata/.plugins/org.eclipse.e4.workbench/workbench.xmi
 
     echo "**"
     echo "** Don't forget to add the files to git and push them before testing!"
@@ -119,7 +121,7 @@ tarballprep() {
     source "${ZDCFGPATH}"
 
     if [ "${USER}" == "${ZDUSER}" ]; then
-        echo "** Run this script from the host machine, it will ssh in can run as needed"
+        echo "** Run this script from the host machine, it will ssh in and run as needed"
         exit 1
     fi
 

@@ -12,6 +12,7 @@ source ~/ZonamaDev/common/global.config
 BUILD_LOG=${BUILD_DIR}/build.out
 IS_PANEL=false
 IS_API_CALL=false
+API_WAIT_OUTPUT=true
 
 main() {
     local ret=255
@@ -38,10 +39,12 @@ main() {
         'rununittests' ) server_rununittests "$@";;
         'start' )        server_start        "$@";;
         'status' )       server_status       "$@";;
-        'stop' )         server_stop         "$@";;
+        'shutdown' )     server_shutdown     "$@";;
+        'stop' )         server_shutdown     "0";;  # Backwards compatibility stop => shutdown 0
+        'kill' )         server_kill         "$@";;
         'reset_ip' | 'resetip' | 'reset-ip' )    reset_server_ip "$@";;
         'version' )      show_version        "$@";;
-        'help' | * ) echo "Usage: $0 [backup|build|postdebug|latest|send|restore|runUnitTests|start|status|stop|reset_ip|version]"; return 1 ;;
+        'help' | * ) echo "Usage: $0 [backup|build|postdebug|latest|send|restore|runUnitTests|start|status|shutdown|reset_ip|version|kill]"; return 1 ;;
     esac
 
     ret=$?
@@ -68,7 +71,7 @@ server_start() {
 
         if yorn "Would you like to stop the sever?"; then
             echo "** stopped server first **"
-            server_stop
+            server_shutdown 0
         else
             release_lock
             exec screen -D -RR swgemu-server
@@ -134,10 +137,11 @@ server_start() {
     fi
 
     # Start server detached
-    screen -dmS swgemu-server -L gdb --command=$HOME/bin/gdb_settings ./core3
+    screen -dmS swgemu-server -L -- gdb --command=$HOME/bin/gdb_settings ./core3
 
     if $autostart; then
         echo "** server started **"
+        sleep 5
         return 0
     fi
 
@@ -207,12 +211,51 @@ server_send() {
 
     screen -S swgemu-server -X stuff "$string"
 
-    sentinel --stop-next-prompt --tail --seek $sz
+    if $API_WAIT_OUTPUT; then
+        sentinel --stop-next-prompt --tail --seek $sz
+    fi
 
     return 1
 }
 
-server_stop() {
+server_shutdown() {
+    local delay=$1
+
+    if [ -z "${delay}" ]; then
+        delay=0
+    fi
+
+    if server_status -q; then
+        :
+    else
+        echo "** Server not running **"
+        return 0
+    fi
+
+    cd "${RUN_DIR}"
+
+    if [ ! -f "screenlog.0" ]; then
+        echo "** screenlog is missing, did you run the server from $0?"
+        return 1
+    fi
+
+    local sz=$(stat -c '%s' screenlog.0)
+
+    echo "** send 'shutdown ${delay}' command to server **"
+    server_send "shutdown ${delay}"
+
+    sentinel --stop-next-prompt --tail --seek $sz
+
+    if server_status -q; then
+        echo -e $(tput setaf 2)"\n** ERROR: server shutdown failed **"$(tput sgr0)
+    else
+        echo -e $(tput setaf 2)"\n** server shutdown complete **"$(tput sgr0)
+
+        echo -e "\n** "$(date)" SERVER SHUTDOWN BY swgemu shutdown ${delay} COMMAND. **\n" >> screenlog.0
+    fi
+}
+
+server_kill() {
     if server_status -q; then
         :
     else
@@ -314,6 +357,8 @@ server_stop() {
 }
 
 server_build_step() {
+    local extra="$@"
+
     cd ${BUILD_DIR}
 
     if [ ! -f "${WORKSPACE}/Initial_Core3_Build.log" ]; then
@@ -331,19 +376,33 @@ server_build_step() {
     echo "Logging to ${BUILD_LOG}"
 
     (
-        if [ -n "$#" ]; then
-	    echo make -k $@
-	    make -k $@
-	fi
-
-        export MAKE=$(type -P make)' -j'$(nproc)
-
-	echo time $MAKE -k build-cmake-with-idl
-
-	time $MAKE -k build-cmake-with-idl 2>&1
-
-	echo $? > ${build_status_file}
-    ) | tee "${BUILD_LOG}"
+        if fgrep -q 'build-ninja:' Makefile; then
+            if [[ $extra =~ (.*)clean(.*) ]]; then
+                (set -x; make clean-ninja clean-ninja-debug)
+                extra="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+            fi
+            if [ -z "${extra}" ]; then
+                make build-ninja-debug
+            else
+                make build-ninja-debug "$extra"
+            fi
+        else ## Old makefile w/o Ninja targets
+            if [[ $extra =~ (.*)clean(.*) ]]; then
+                (
+                    set -xe
+                    rm -fr build/ninja
+                    mkdir -p build/ninja
+                    cd build/ninja
+                    echo '*' > .gitignore
+                    cmake -G Ninja -DENABLE_CCACHE=ON -DBUILD_IDL=ON -DRUN_GIT=ON ../.. "${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+                )
+            fi
+            set -xe
+            cd build/ninja
+            time ninja -v
+        fi
+      	echo $? > ${build_status_file}
+    ) 2>&1 | tee "${BUILD_LOG}"
 
     local status=$(cat $build_status_file)
 
@@ -366,119 +425,16 @@ server_build() {
 
     cd "${BUILD_DIR}"
 
-    local extra=""
-
-    local bdb_ver=$(sed -ne '/.*-ldb-\([0-9.]*\).*/s//\1/p' src/Makefile.am)
-
-    if [ "X${bdb_ver}" != 'X5.0' ]; then
-	if dpkg -s libdb5.3-dev > /dev/null 2>&1; then
-	    :
-	else
-	    echo
-	    echo "##########################################"
-	    echo "## AUTO-UPGRADING YOUR BDB TO BDB 5.3.x ##"
-	    echo "##########################################"
-	    echo
-            sudo apt-get update
-	    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y libdb5.3-dev
-	    rm -f build/unix/config.log
-	    extra='clean '
-	fi
+    if [ "X$1" = "X--auto" ]; then
+        shift
     fi
 
-    if ! grep backports /etc/apt/sources.list > /dev/null 2>&1; then
-        echo "deb http://ftp.debian.org/debian jessie-backports main" | sudo tee -a /etc/apt/sources.list > /dev/null
-        echo
-        echo "#############################################################"
-        echo "## ADDED DEBIAN BACKPORTS TO GET NEWER PACKAGES INTO JESSIE #"
-        echo "#############################################################"
-        echo
-    fi
+    local extra="$@"
 
-    local cmake_version=$(dpkg-query --showformat='${Version}' --show cmake)
-
-    if [[ ${cmake_version} =~ ^3.0 ]]; then
-        echo
-        echo "#######################################"
-        echo "## UPGRADING CMAKE TO LATEST VERSION ##"
-        echo "#######################################"
-        echo
-        sudo apt-get update
-        sudo DEBIAN_FRONTEND=noninteractive apt-get -t jessie-backports install -y cmake
-        cmake_version=$(dpkg-query --showformat='${Version}' --show cmake)
-        echo "cmake version: ${cmake_version}"
-        rm -f build/unix/config.log
-        extra='clean '
-    fi
-
-    if ! grep unstable /etc/apt/sources.list > /dev/null 2>&1; then
-        echo "deb http://ftp.us.debian.org/debian unstable main contrib non-free" | sudo tee -a /etc/apt/sources.list > /dev/null
-        echo
-        echo "############################################################"
-        echo "## ADDED DEBIAN UNSTABLE TO GET NEWER PACKAGES INTO JESSIE #"
-        echo "############################################################"
-        echo
-    fi
-
-    local gpp_version=$(dpkg-query --showformat='${Version}' --show g++-6 2> /dev/null)
-
-    if [ -z "${gpp_version}" ]; then
-        echo
-        echo "#######################################"
-        echo "## UPGRADING g++-6 TO LATEST VERSION ##"
-        echo "#######################################"
-        echo
-        echo 'libc6 libraries/restart-without-asking boolean true' | sudo debconf-set-selections
-        sudo apt-get update
-        sudo DEBIAN_FRONTEND=noninteractive apt-get -t unstable install -y g++-6
-        gpp_version=$(dpkg-query --showformat='${Version}' --show g++-6)
-        echo "g++-6 version: ${gpp_version}"
-        rm -f build/unix/config.log
-        extra='clean '
-    fi
-
-    if eval $LUA53_TEST_SRC < /dev/null > /dev/null 2>&1; then
-	if [ ! -d "${LUA53_TEST_DIR}" ]; then
-	    echo "** Source requires lua 5.3 but ${LUA53_TEST_DIR} doesn't exist."
-
-	    local upgrade_script=$(echo $HOME/ZonamaDev/fasttrack/scripts/devsetup.d/*lua53)
-	    local ret=255
-
-	    if [ -f "$upgrade_script" ]; then
-		echo
-		echo "##########################################"
-		echo "## AUTO-UPGRADING YOUR LUA TO LUA 5.3.x ##"
-		echo "##########################################"
-		echo
-		(cd $HOME;$HOME/ZonamaDev/fasttrack/scripts/devsetup --force $(basename $upgrade_script))
-
-		ret=$?
-		if [ $ret -eq 0 ]; then
-		    rm -f build/unix/config.log
-		    extra='clean '
-		fi
-	    else
-		ret=254
-		echo "** Can't find lua53 upgrade script!?"
-	    fi
-	    
-	    if [ $ret -ne 0 ]; then
-		echo "** You need to manually upgrade Lua to 5.3.x before you can build the server codebase. (ERR=${ret}) **"
-		return 12
-	    fi
-	fi
-    fi
-
-    if [ ! -f build/unix/config.log ]; then
-        extra="${extra}config"
-
-        (
-            cd "${WORKSPACE}/PublicEngine"
-            git pull
-            cd MMOEngine
-            rm -f lib/unix/libengine3.a
-            make
-        )
+    if [ ! -f build/ninja/build.ninja ]; then
+        if ! [[ $extra =~ clean ]]; then
+            extra="clean ${extra}"
+        fi
     fi
 
     if server_build_step $extra; then
@@ -492,7 +448,7 @@ server_build() {
 
 reset_server_ip() {
     echo "** Re-running IP setup"
-    server_stop
+    server_shutdown 0
     zdcfg clear iplist
     zdcfg clear server_ip
 
@@ -537,7 +493,7 @@ server_update_ip() {
 	echo '** Skipping ipcheck because flag disable_ipcheck is on **'
     else
 	# Check if ip is valid
-	read -a instance_query <<<$(curl -s -D - -A zonamaipscan --connect-timeout 5 -m 5 'http://127.0.0.1:'${OPENRESTY_PORT}'/zonama-instance-id?why=start' 2> /dev/null)
+	read -a instance_query -d '\0' <<<$(curl -s -D - -A zonamaipscan --connect-timeout 5 -m 5 'http://127.0.0.1:'${OPENRESTY_PORT}'/zonama-instance-id?why=start' 2> /dev/null)
 
 	if [ "${instance_query[1]}" != "200" ]; then
 	    echo "** ERROR: Local zonama-instance-id service is not running on port ${OPENRESTY_PORT} as expected, giving up." >&2
@@ -623,11 +579,11 @@ server_backup() {
             server_send "info"
 
             echo "** stopping server **"
-            server_stop
+            server_shutdown 0
             restartserver=true
         else
             if yorn "Would you like to shutdown the server first?"; then
-                server_stop
+                server_shutdown 0
                 restartserver=true
             else
                 echo "** USER ABORTED BACKUP **"
@@ -755,7 +711,7 @@ server_restore()
         echo "** SERVER IS RUNNING **"
 
         if yorn "Would you like to shutdown the server first?"; then
-            server_stop
+            server_shutdown 0
             :
         else
             echo "** USER ABORTED RESTORE **"
@@ -770,7 +726,7 @@ server_restore()
         return 15
     fi
 
-    server_backup --tag "pre_restore_backup" 
+    server_backup --tag "pre_restore_backup"
 
     echo "** RESTORING "${last_bu}" **"
     local restat=$(mktemp /tmp/swgemu-recovery-status.XXXXXX)
@@ -883,23 +839,23 @@ post_debug()
     echo -e "**\n** Post Debug Message\n**"
 
     echo -e "** This will create a dump of numerous files and status information"
-    
+
     echo -e "** and post them to the internet via a github gist or an issue.\n**"
 
     echo -e "** Attempts are made to make sure the post does not include sensitive"
-    
+
     echo -e "** data but we cannot 100% guarantee that sensitive data won't be posted.\n**"
 
     echo -e "** If you're worried you can follow the prompt to post a [G]ist and"
-    
+
     echo -e "** DO NOT LOGIN to GitHub so your gist will be 100% annonymous.\n**"
 
     echo -e "** By default if you do post a gist and login the gist is created as"
-    
+
     echo -e "** private so you can review it before sharing.\n**"
 
     echo -e "** Most people will want to post an [I]ssue and login to github"
-    
+
     echo -e "** to get immediate feedback and quicker support.\n**"
 
     if [ -z "$gori" ]; then
@@ -980,6 +936,8 @@ post_debug_body() {
     # Note: Can't be too long as it goes into the command line with ghi and thus is limited
     #       see: xargs --show-limits < /dev/null
     #
+    eval $(get_config --bash '..Port')
+
     local debug_commands=(
         "show_version"
         "cat /etc/os-release"
@@ -987,16 +945,21 @@ post_debug_body() {
         "get_config --bash 'Zone..'"
         "get_config --bash 'Tre..'"
         "tre_check"
-        "tail -100 ${WORKSPACE}/Core3/MMOCoreORB/bin/screenlog.0"
-        "tail -100 ${WORKSPACE}/Core3/MMOCoreORB/bin/log/core3.log"
-        "tail -25 ${OPENRESTY_DIR}/nginx/logs/error.log"
+        "tail -50 ${WORKSPACE}/Core3/MMOCoreORB/bin/screenlog.0"
+        "tail -50 ${WORKSPACE}/Core3/MMOCoreORB/bin/log/core3.log"
+        "tail -10 ${OPENRESTY_DIR}/nginx/logs/error.log"
 	"/sbin/ifconfig -a"
 	"mysql swgemu -tve 'select galaxy_id,name,address,port,pingport,population from galaxy'"
+        "nc 127.0.0.1 ${StatusPort}"
 	"zdcfg dump-flags"
 	"zdcfg get-all"
         "uname -a"
+        "sudo dmidecode"
+        "lsblk"
+        "lspci"
         "df -h"
 	"nproc"
+        "sed '/^$/q' /proc/cpuinfo"
         "top -Hbn 1"
     )
 
@@ -1028,7 +991,7 @@ server_latest()
         echo "** Server is running **"
 
         if yorn "Would you like to shut it down?"; then
-            if server_stop; then
+            if server_shutdown 0; then
                 :
             else
                 echo "** server stop error=$? **"
@@ -1043,8 +1006,6 @@ server_latest()
     (
         set -xe
         cd "${BUILD_DIR}"
-        git rm -f --ignore-unmatch build/unix/Makefile build/unix/config.h build/unix/config.status || true
-        git checkout HEAD -- Makefile.in aclocal.m4 config.h.in configure src/client/Makefile.in src/client/aclocal.m4 src/client/config.h.in src/client/configure build/unix || true
         local have_changes=$(git status --porcelain --untracked-files=no | wc -l)
         if [ $have_changes -gt 0 ]; then
             git stash save "swgemu-latest $(date)"
@@ -1053,12 +1014,17 @@ server_latest()
         else
             git pull
         fi
-        cd "${WORKSPACE}/PublicEngine"
-        git pull
-        cd MMOEngine
-        rm -f lib/unix/libengine3.a
-        make
-	rm -f "${BUILD_DIR}/build/unix/config.log"
+
+	# Check for existence of deprecated PublicEngine folder; remove if it exists
+	# Also clean up broken symlinks
+	cd "${WORKSPACE}"
+	if [ -d PublicEngine ]; then
+		rm -fr PublicEngine Core3/MMOEngine
+	fi
+
+	# Update engine3 submodule
+	cd Core3
+	git submodule update --recursive
     )
 
     local ret=$?
@@ -1174,6 +1140,10 @@ if [ "X$1" == "X--api" ]; then
     IS_API_CALL=true
     exec 2>&1
     shift
+    if [ "X$1" == "X--nowait" ]; then
+        API_WAIT_OUTPUT=false
+        shift
+    fi
     tmp=$1
     shift
     set -- $tmp --auto $*

@@ -57,8 +57,27 @@ launch_yoda() {
 	return 1
     fi
 
+    if [ -z "${BROWSER}" ]; then
+        read BROWSER OTHER_BROWSERS <<<$(for i in chromium google-chrome chromium-browser firefox iceweasel; do type -P $i; done)
+        echo "** BROWSER not set, using: ${BROWSER}"
+    fi
+
+    case $BROWSER in
+        *chromium* | *google-chrome* )
+            local fn=$(basename $BROWSER)
+            if [ -f ~/.config/${fn}/'Local State' ]; then
+                sed -i 's/"exited_cleanly":false/"exited_cleanly":true/' ~/.config/${fn}/'Local State'
+            fi
+            if [ -f ~/.config/${fn}/Default/Preferences ]; then
+                sed -i 's/"exited_cleanly":false/"exited_cleanly":true/; s/"exit_type":"[^"]\+"/"exit_type":"Normal"/' ~/.config/${fn}/Default/Preferences
+            fi
+        ;;
+    esac
+
     echo "** Launch $BROWSER '${YODA_URL}' **"
+
     $BROWSER "${YODA_URL}" > /dev/null 2>&1 < /dev/null &
+
     YODA_STARTED=true
 }
 

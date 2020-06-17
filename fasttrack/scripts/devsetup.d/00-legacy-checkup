@@ -8,6 +8,13 @@ legacy_checkup() {
     local base_dir=$(dirname $ME)
     local zd_branch=$(cd ${base_dir};git rev-parse --abbrev-ref HEAD)
 
+    source /etc/os-release
+
+    if [ "$VERSION_ID" -eq 8 ]; then
+        export ZONAMADEV_BRANCH=""
+        sed -e '/ZONAMADEV_BRANCH/d' -i ${base_dir}/../../common/global.config
+    fi
+
     if [ -z "${ZONAMADEV_BRANCH}" ]; then
         export ZONAMADEV_BRANCH="release-1.4"
         echo 'export ZONAMADEV_BRANCH="'"${ZONAMADEV_BRANCH}"'"' >> ${base_dir}/../../common/global.config

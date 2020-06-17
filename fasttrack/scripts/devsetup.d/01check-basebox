@@ -26,12 +26,5 @@ if zdcfg check-flag suspend_devsetup; then
 	exit 0
     fi
 fi
-## Legacy hack - Make sure 00-legacy-checkup gets to run after first boot update from 1.4.5 box
-if ! type legacy_checkup > /dev/null 2>&1; then
-    if [ "$(cat /.swgemudev.version || echo '1.4.5')" = "1.4.5" ]; then
-        msg "Firstboot legacy hack, run ${run_dir}/00-legacy-checkup"
-        source "${run_dir}/00-legacy-checkup"
-    fi
-fi
 #
 # vi:set ft=sh

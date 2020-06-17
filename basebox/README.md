@@ -34,8 +34,8 @@ Follow steps in next section to prepare the box.
 1. Resize the virtualbox to 1280x800 using the Virtualbox view menu.
 2. Launch eclipse, set default workspace as ~/workspace
 3. Install the Lua Development Tools LDT (http://download.eclipse.org/ldt/releases/milestones/)
-4. Import Projects in ~/workspace
-5. Associate *.idl *.lua *.h *.cpp *.lst with Eclipse
+4. Import Projects in ~/workspace/Core3
+5. Associate *.idl *.lua *.h *.cpp *.lst in Eclipse: Window -> Preferences -> General -> Editors -> File Associations 
 6. Launch Chrome and verify it's positioned properly then close it.
 7. Launch Firefox and verify it's positioned properly, set home page to http://www.swgemu.com/
 8. Launch Atom, open ~/workspace/Core3 as a folder, navigate to config.lua and leave open

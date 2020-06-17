@@ -31,14 +31,14 @@ form {
 
 .control-button {
   height: 40px;
-  width: 60px;
+  width: 80px;
   color: #000;
   font-size: 8pt;
 }
 
 .control-button:hover {
   height: 40px;
-  width: 60px;
+  width: 80px;
   border: 0px;
   background: #fff;
 }

@@ -1,0 +1,2 @@
+cp ${ZDHOME}/.my.cnf /root/.my.cnf && notice "Copied ${ZDUSER}'s mysql credentials to /root/.my.cnf"
+chmod 600 /root/.my.cnf

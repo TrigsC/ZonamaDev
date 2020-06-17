@@ -61,6 +61,7 @@ control_permission_level = {
     ['latest'] = 15,
     ['build'] = 15,
     ['send'] = 15,
+    ['kill'] = 15,
     ['version'] = 1,
 }
 

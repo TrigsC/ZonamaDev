@@ -42,13 +42,24 @@ mysql_init_database() {
 
     for i in ~/workspace/Core3/MMOCoreORB/sql/swgemu.sql ~/workspace/Core3/MMOCoreORB/sql/updates/deletedcharacters_add_dbdeleted.sql ~/workspace/Core3/MMOCoreORB/sql/updates/account_ips.sql
     do
-	echo "Run $i against database"
-	mysql < $i || error "mysql failed while reading $i" 130
+        if [ -f $i ]; then
+            echo "Run $i against database"
+            mysql < $i || error "mysql failed while reading $i" 130
+        else
+            echo "WARNING: $i missing, might be newer code base, after October 18, 2018 these were merged into swgemu.sql"
+        fi
     done
 
     mysql -ve "GRANT ALL PRIVILEGES ON ${DBName}.* TO '${DBUser}'@'localhost';" || error "Failed to grant access on ${DBName} to ${DBUser} user!?" 130
 
     mysql -ve "FLUSH PRIVILEGES;"
+
+    # Debian 9 assumes unix_socket auth but most of the scripts assume mysql_native_password
+    # This causes logrotate to fail and send lots of annoying messages
+    if [ -f /etc/logrotate.d/mysql-server ]; then
+        # Just remove it for now, most development environments don't need it anyway
+        sudo rm /etc/logrotate.d/mysql-server
+    fi
 
     alert "Mysql Database Initialized" "The database ${DBName} was created and initialized and the database user ${DBUser} was granted all privileges."
 

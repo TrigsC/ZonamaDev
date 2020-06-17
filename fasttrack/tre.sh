@@ -80,7 +80,12 @@ main() {
     cd "${trepath}"
 
     if $is_auto; then
-	scp -F $sshcfg -o Compression=no $(cat "${need}") default:Desktop/SWGEmu
+        if ! [ -s $need ]; then
+            echo "** WARNING: List of missing files is blank but we're in auto mode, will try to copy everything..."
+            echo "${trefiles[@]}" > ${need}
+        fi
+
+	scp -F $sshcfg -o Compression=no $(cat ${need}) default:Desktop/SWGEmu
     else
 	scp -F $sshcfg -o Compression=no *.tre default:Desktop/SWGEmu
     fi

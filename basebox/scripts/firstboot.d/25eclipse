@@ -15,22 +15,22 @@ fi
 (
     echo "Install Eclipse from $ECLIPSE_URL"
 
+    ECLIPSE_FN="${ZDHOME}/Downloads/eclipse.tar.gz"
+
     cd ${ZDHOME}
     mkdir Downloads || echo "Created Downloads directory"
     cd Downloads
-    if wget --progress=dot:giga "$ECLIPSE_URL"; then
+    if wget -O "${ECLIPSE_FN}" --progress=dot:giga "$ECLIPSE_URL"; then
 	:
     else
 	echo "** wget returned $?"
 	exit $?
     fi
 
-    ECLIPSE_FN=$PWD/$(basename "$ECLIPSE_URL")
-
-    if [ ! -f $ECLIPSE_FN ]; then
+    if [ ! -f "${ECLIPSE_FN}" ]; then
 	echo "** Can't find downloaded file"
 	exit 100
     fi
     cd ${ZDHOME}
-    tar xf $ECLIPSE_FN
+    tar xf "${ECLIPSE_FN}"
 )

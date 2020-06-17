@@ -50,12 +50,11 @@ plugins_installed = false
 
 [
   { :name => "vagrant-vbguest", :version => ">= 0.12.0" },
-  { :name => "vagrant-reload", :version => ">= 0.0.1" },
-  { :name => "vagrant-triggers", :version => ">= 0.5.3" }
+  { :name => "vagrant-reload", :version => ">= 0.0.1" }
 ].each do |plugin|
   if not Vagrant.has_plugin?(plugin[:name], plugin[:version])
     # raise "#{plugin[:name]} #{plugin[:version]} is required. Please run `vagrant plugin install #{plugin[:name]}`"
-    system("vagrant plugin install #{plugin[:name]}")
+    system("bash -c 'set -x;cd ../..;vagrant plugin install #{plugin[:name]}'")
     plugins_installed = true
   end
 end
@@ -74,8 +73,8 @@ Vagrant.configure(2) do |config|
   config.vm.hostname = "swgemudev"
 
   # Base Box
-  config.vm.box = "zonama/zonamadev-deb-jessie"
-  config.vm.box_version = "1.4.5"
+  config.vm.box = "zonama/zonamadev-deb-stretch"
+  config.vm.box_version = "1.5.8"
   config.vm.box_check_update = true
 
   config.vm.network "forwarded_port", guest: 44480, host: 44480 # HTTP EmuYoda
@@ -129,12 +128,13 @@ Vagrant.configure(2) do |config|
       v.gui = true
 
       if provider == "virtualbox"
+        # Current repo and branch
         v.customize [ "guestproperty", "set", :id, "/ZonamaDev/url", zonamadev_url ]
         v.customize [ "guestproperty", "set", :id, "/ZonamaDev/branch", zonamadev_branch ]
         v.customize [ "guestproperty", "set", :id, "/ZonamaDev/upgrade", ENV['ZONAMADEV_UPGRADE'] || 'no' ]
         # Hint at a bigger video config
         v.customize ["modifyvm", :id, "--accelerate3d", "off"]
-        v.customize ["modifyvm", :id, "--accelerate2dvideo", "on"]
+        v.customize ["modifyvm", :id, "--accelerate2dvideo", "off"]
         v.customize ["modifyvm", :id, "--vram", "128"]
         v.customize ["modifyvm", :id, "--audio", "null"]
         v.customize 'post-boot', ["controlvm", :id, "setvideomodehint", "1280", "800", "24"]

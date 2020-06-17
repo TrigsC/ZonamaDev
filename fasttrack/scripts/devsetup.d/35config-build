@@ -43,7 +43,7 @@ config_build() {
     step_complete 0 "yoda=false"
 }
 
-if [ ! -f $WORKSPACE/Core3/MMOCoreORB/build/unix/config.log ]; then
+if [ ! -f $WORKSPACE/Initial_Core3_Build.log ]; then
     if zdcfg check-flag have_yoda; then
 	echo "** Let Yoda handle it"
 	launch_yoda

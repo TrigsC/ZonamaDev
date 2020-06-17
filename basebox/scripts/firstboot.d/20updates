@@ -8,8 +8,15 @@
 #
 
 # Add Googles's chrome repo to sources
-wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=true apt-key add -
 echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
+
+# Add clang repo to sources
+wget -q -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=true apt-key add -;
+echo 'deb http://apt.llvm.org/stretch/ llvm-toolchain-stretch-7 main' > /etc/apt/sources.list.d/clang.list;
+
+# Hack for initramfs build bug: https://bugs.launchpad.net/ubuntu/+source/initramfs-tools/+bug/1636922
+rmdir /etc/udev/rules.d/70-persistent-net.rules && echo "Removed empty /etc/udev/rules.d/70-persistent-net.rules directory"
 
 (
     # die on error
@@ -22,18 +29,24 @@ echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources
 
     export DEBIAN_FRONTEND=noninteractive
 
+    # echo 'APT::Install-Recommends "0";\nAPT::Install-Suggests "0";' > /etc/apt/apt.conf.d/01norecommends
+
     # exit if anything returns error
 
     # Get latest repo locations
     apt-get update
 
     # Upgrade whatever we can
-    for i in 1 2 3
+    for i in 3 2 1
     do
         if apt-get -y -o Dpkg::Options::="--force-confnew" dist-upgrade; then
             break
         else
-            notice "apt-get dist-upgrade failed RET=$? RETRY=$i"
+            if [ "$i" -gt 1 ]; then
+                notice "apt-get dist-upgrade failed RET=$? RETRY=$i"
+            else
+                error "apt-get dist-upgrade failed RET=$?" 129
+            fi
         fi
     done
 
@@ -41,12 +54,16 @@ echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources
 
     echo ">> PACKAGES: $PACKAGES $EXTRAS"
 
-    for i in 1 2 3
+    for i in 3 2 1
     do
         if apt-get -y install $PACKAGES $EXTRAS; then
             break
         else
-            notice "apt-get failed RET=$? RETRY=$i"
+            if [ "$i" -gt 1 ]; then
+                notice "apt-get install failed RET=$? RETRY=$i"
+            else
+                error "apt-get install failed RET=$?" 130
+            fi
         fi
     done
 
@@ -57,10 +74,9 @@ echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources
     else
         # Start out in text console until vbguest can update video drivers
         systemctl set-default -f multi-user.target
-
-        # Wait a bit for network to start
-        systemctl enable systemd-networkd-wait-online
     fi
+
+    # rm -f /etc/apt/apt.conf.d/01norecommends && echo "Removed /etc/apt/apt.conf.d/01norecommends"
 )
 
 ret=$?

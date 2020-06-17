@@ -29,6 +29,10 @@ update_iplist() {
 
     zdcfg clear iplist
 
+    local default_interface='eth0'
+    read j default_interface j <<<$(ip -o -4 address | sed -n '2p')
+    echo "** Default Interface: ${default_interface}"
+
     local pub_ip=$(dig @ns1.google.com -t txt o-o.myaddr.l.google.com +short | tr -d '"')
 
     if [ -z "$pub_ip" ]; then
@@ -52,8 +56,8 @@ update_iplist() {
 
     local guess_lan_router=${default_route_ip}
 
-    # By default eth0 is NAT, if we found a different default route interface just assume it's the LAN
-    if [ "${default_route_interface}" != "eth0" ]; then
+    # By default ${default_interface} is NAT, if we found a different default route interface just assume it's the LAN
+    if [ "${default_route_interface}" != "${default_interface}" ]; then
 	echo "** Default Route ${default_route_ip} is on ${default_route_interface}, assuming LAN is ${guess_lan_router}"
     else
 	echo "** Default Route: ${default_route}"
@@ -100,7 +104,7 @@ update_iplist() {
     local lan_ip=''
 
     # Maybe we can find outselves right on our own interface!
-    if [ "${default_route_interface}" != "eth0" ]; then
+    if [ "${default_route_interface}" != "${default_interface}" ]; then
 	# Maybe we're already here!
 	read -a aa <<<$(ip -o -4 addr show ${default_route_interface})
 	local tmp_ip=$(echo ${aa[3]}|cut -d/ -f1)
@@ -157,18 +161,19 @@ update_iplist() {
 get_instance() {
     local scan_token=$1
 
-    read -a instance_query <<<$(curl -s -D - -A zonamaipscan --connect-timeout 5 -m 5 'http://127.0.0.1:'${OPENRESTY_PORT}'/zonama-instance-id?scantoken='$scan_token 2> /dev/null)
+    read -a instance_query -d '\0' <<<$(curl -s -D - -A zonamaipscan --connect-timeout 5 -m 5 'http://127.0.0.1:'${OPENRESTY_PORT}'/zonama-instance-id?scantoken='$scan_token 2> /dev/null)
+
     for i in 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1
     do
-	read -a instance_query <<<$(curl -s -D - -A zonamaipscan --connect-timeout 5 -m 5 'http://127.0.0.1:'${OPENRESTY_PORT}'/zonama-instance-id?scantoken='$scan_token 2> /dev/null)
-
 	if [ "${instance_query[1]}" = "200" ]; then
-	    echo "** Found zonama-instance-id service on localhost." >&2
+            echo "** Found zonama-instance-id (${instance_query[${#instance_query[@]}-1]}) on localhost." >&2
 	    break
 	fi
 
 	echo "** Waiting $i seconds for nginx zonama-instance-id service to start" >&2
 	sleep 1
+
+	read -a instance_query -d '\0' <<<$(curl -s -D - -A zonamaipscan --connect-timeout 5 -m 5 'http://127.0.0.1:'${OPENRESTY_PORT}'/zonama-instance-id?scantoken='$scan_token 2> /dev/null)
     done
 
     if [ "${instance_query[1]}" != "200" ]; then
@@ -211,7 +216,7 @@ check_ip() {
 
     # Try SSL first
     local scheme='https'
-    local result=$(curl -s -A zonamaipscan --insecure --connect-timeout 5 -m 5 ${scheme}'://'${server_ip}':'${OPENRESTY_SSL_PORT}'/zonama-instance-id?scantoken='$scan_token 2>/dev/null)
+    local result=$(curl -sk -A zonamaipscan --insecure --connect-timeout 5 -m 5 ${scheme}'://'${server_ip}':'${OPENRESTY_SSL_PORT}'/zonama-instance-id?scantoken='$scan_token 2>/dev/null)
 
     # If that fails fall back to HTTP
     if [ -z "$result" ]; then
@@ -223,6 +228,8 @@ check_ip() {
     if [ "X$result" = "X$our_instance" ]; then
 	echo "** Found ourselves at server_ip (${scheme}://${server_ip}/)"
         return 0
+    else
+        echo "** ERROR: Instance id mis-match, got ($result) expected ($our_instance)"
     fi
 
     alert "Invalid Server IP" "Server IP was ${server_ip}, but it does not appear to be valid anymore.\nRe-running IP setup."

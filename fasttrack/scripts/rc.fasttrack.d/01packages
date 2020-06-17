@@ -1,0 +1,41 @@
+#!/bin/bash
+#
+# 01packages - Make sure all base box packages are installed
+#
+check_packages() {
+    source $ZDHOME/ZonamaDev/common/basebox.config
+
+    export DEBIAN_FRONTEND=noninteractive
+    unset UCF_FORCE_CONFFOLD
+    export UCF_FORCE_CONFFNEW=YES
+
+    local need=''
+
+    for i in $PACKAGES
+    do
+	if ! dpkg -s $i > /dev/null 2>&1; then
+	    need="$need $i"
+	fi
+    done
+
+    if [ -z "$need" ]; then
+        return 0
+    fi
+
+    apt-get update
+
+    msg "Missing the follwing packages: $need"
+
+    notice "Packages Missing" "Re-installing missing packages, please wait."
+
+    apt-get -y install $need
+
+    apt-get -y autoremove
+
+    notice "Packages Repaired" "Re-installed missing package(s): $need"
+}
+
+(
+    # sub-shell so sourcing basebox.config doesn't mess things up
+    check_packages
+)

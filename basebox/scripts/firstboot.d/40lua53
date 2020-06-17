@@ -1,28 +1,26 @@
 #!/bin/bash
 #
-# 40lua-lnum - Get LUA with LNUM patch
+# 40lua53 - Get LUA 5.3
 #
 # Author: Lord Kator <lordkator@swgemu.com>
 #
 # Created: Tue Dec 29 07:05:21 EST 2015
 #
 
-LUA_LNUM_TEST_FILE="/usr/local/lib/liblua.a"
-
 LUA_BIGNUM='4611686018427387904' # 2^62
 
 if $FORCE; then
-    echo "Force rebuild of lua-lnum"
+    echo "Force rebuild of lua53"
 else
-    if [ -f ${LUA_LNUM_TEST_FILE} ]; then
+    if [ -d ${LUA53_TEST_DIR} ]; then
 	# Check of we have 64 bit ints
 	bignum=$(echo 'print('${LUA_BIGNUM}')' | /usr/local/bin/lua -)
 	if [ "$bignum" != "${LUA_BIGNUM}" ]; then
 	    echo "** /usr/local/bin/lua not built with 64bit ints!"
 	    echo "** Will rebuild with LNUM_INT64"
 	else
-	    echo "Looks like ${LUA_LNUM_REPO} is already installed"
-	    echo "To force rebuild do: sudo rm -f ${LUA_LNUM_TEST_FILE}"
+	    echo "Looks like ${LUA53_URL} is already installed"
+	    echo "To force rebuild do: sudo rm -f ${LUA53_TEST_DIR}"
 	    return 0
 	fi
     fi
@@ -30,7 +28,7 @@ fi
 
 (
     need=()
-    for pkg in ${LUA_LNUM_PACKAGES}
+    for pkg in ${LUA53_PACKAGES}
     do
 	if dpkg -s $pkg > /dev/null 2>&1; then
 	    :
@@ -47,24 +45,30 @@ fi
 
     umask 022
 
-    tmpdir=$(mktemp -d /tmp/$(basename $ME).XXXXXX)
+    mkdir ${EXTERNAL_SRC_DIR} && echo "Created ${EXTERNAL_SRC_DIR} directory"
+    mkdir ${EXTERNAL_SRC_DIR}/tarballs && echo "Created ${EXTERNAL_SRC_DIR}/tarballs directory"
+    pushd ${EXTERNAL_SRC_DIR}
 
-    echo "Using ${tmpdir} for download and build."
+    cd ${EXTERNAL_SRC_DIR}/tarballs
 
-    chmod 755 ${tmpdir}
+    LUA53_TAR=$PWD/$(basename "${LUA53_URL}")
 
-    cd ${tmpdir}
+    rm "${LUA53_TAR}" && echo "** Removed old ${LUA53_TAR}"
 
-    git clone ${LUA_LNUM_REPO}
+    wget --progress=dot "${LUA53_URL}" || error "Failed to download ${LUA53_URL}" 128
 
-    dir=$(basename "${LUA_LNUM_REPO}" .git)
+    [ -f $LUA53_TAR ] || error "Can't find downloaded file: $LUA53_TAR" 129
 
-    [ -d "$dir" ] || error "Failed to clone lnum from ${LUA_LNUM_REPO}, look in ${tmpdir} for clues." 140
+    (cd ${EXTERNAL_SRC_DIR};tar xzf $LUA53_TAR)
+
+    dir="${EXTERNAL_SRC_DIR}/"$(basename $LUA53_TAR .tar.gz)
+
+    cd $dir || error "Failed to cd to ${dir}" 126
 
     tm_lastrpt=$SECONDS
     lines=0
 
-    echo "Building & Installing..."
+    echo "Building ${LUA53_URL} in ${dir}"
     (
 	trap 'st=$?;exec 1>&2;error "UNEXPECTED EXIT FROM BUILD" $st' 0
 	set -xe
@@ -76,8 +80,6 @@ fi
 	    args='-j'$($nproc)
 	fi
 
-	## Make sure to use 64Ints
-	sed -i '/^#define lconfig_h/a#define LNUM_INT64' src/luaconf.h
 	make $args linux 2> ${tmpdir}/make.err | tee make.out
 	make test
 	make install
@@ -92,11 +94,7 @@ fi
 	fi
     done
 
-    [ -f ${LUA_LNUM_TEST_FILE} ] || error "Failed to build Lua lnum from ${LUA_LNUM_REPO}, look in ${tmpdir} for clues." 135
-
-    cd $HOME
-
-    rm -fr ${tmpdir}
+    [ -d ${LUA53_TEST_DIR} ] || error "Failed to build Lua 5.3 from ${LUA53_URL}, look in ${dir} for clues." 135
 )
 
 # Check of we have 64 bit ints

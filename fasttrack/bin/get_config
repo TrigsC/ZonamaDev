@@ -15,17 +15,16 @@ function main()
   paths = { ".", "conf", "bin/conf", os.getenv("HOME") .. "/workspace/Core3/MMOCoreORB/bin/conf" }
 
   for _, dir in pairs(paths) do
-    local p = dir .. "/config.lua"
-    local f = io.open(p)
+    local f = io.open(dir .. "/config.lua")
     if f then
-      config_path = p
+      config_path = dir
       f:close()
       break
     end
   end
 
   if config_path == "" then
-    io.stderr:write(arg[0] .. ": Can't find config.lua\n");
+    io.stderr:write(arg[0] .. ": Can't find config.lua\n")
     os.exit(2)
   end
 
@@ -41,7 +40,7 @@ function main()
 
   needle = arg[1] or "."
 
-  for k,v in pairs(c) do
+  for k,v in pairs(c['Core3']) do
     if string.match(k, needle) then
       selected[k] = v
     end
@@ -69,16 +68,28 @@ if not setfenv then -- Lua 5.2+
 end
 
 function load_config(path)
-    local config = setmetatable({}, {__index=_G})
+    local config_base = path .. "/config.lua"
+    local config_local = path .. "/config-local.lua"
+    local config = setmetatable({metadata={conf_dir=path}, Core3={}}, {__index=_G})
+    config.metadata.conf_base = config_base
     config.loadfile = function(file) local f = loadfile(file) or loadfile(string.gsub(path, "(.*)/(.*)/(.*)", "%1") .. "/" .. file) if f then return setfenv(f, config) else return nil end end
-    assert(pcall(setfenv(assert(loadfile(path)), config)))
+    assert(pcall(setfenv(assert(loadfile(config_base)), config)))
+    local f = io.open(config_local)
+    if f then
+        assert(pcall(setfenv(assert(loadfile(config_local)), config)))
+	f:close()
+        config.metadata.conf_local = config_local
+    end
     setmetatable(config, nil)
 
     -- Clear out the "localFile" function
     for k, v in pairs(config) do
         if type(v) == "function" then
             config[k] = nil
-        end
+	elseif k ~= "metadata" and k ~= "Core3" then
+	    config.Core3[k] = v
+	    config[k] = nil
+	end
     end
 
     return config
@@ -94,7 +105,7 @@ function tprint (tbl, indent)
     if type(v) == "table" then
       print(formatting)
       tprint(v, indent+1)
-    elseif type(v) == 'boolean' then
+    elseif type(v) == 'boolean' or type(v) == 'function' then
       print(formatting .. tostring(v))		
     else
       print(formatting .. v)

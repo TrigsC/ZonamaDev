@@ -32,6 +32,24 @@ check_update() {
     return 0
 }
 
+check_basebox() {
+    local our_version=$(cat /.swgemudev.version || echo '0.0.0')
+    local cur_version=$(grep config.vm.box_version ${ZDHOME}/ZonamaDev/fasttrack/Vagrantfile | tr -d '['"'"'"]' | sed -e 's/.*=[ ]*//' -e 's/;//')
+
+    echo "** This basebox version [${our_version}] vs published version [${cur_version}]"
+
+    if version_error "${cur_version}" "${our_version}"; then
+        echo "Basebox is out of date"
+        alert "ZonamaDev Update Status" "Your Virtual Machine is out of date.\n\nPlease see the ZonamaDev wiki for upgrade instructions.\n" 0
+        if [ -x $BROWSER ]; then
+            $BROWSER "https://github.com/Zonama/ZonamaDev/wiki/NOTICE:-Virtual-Machine-Operating-System-out-of-date"
+        fi
+        return 1
+    fi
+
+    return 0
+}
+
 update_zd() {
     echo "** Update ${ZDREPO}"
     (
@@ -46,6 +64,36 @@ update_zd() {
     local tag=$(git describe --tag)
 
     alert "Updated ZonamaDev" "Updated to ${tag}" 0
+}
+
+version_error() {
+    local want="$1"
+    local have="$2"
+
+    read have_maj have_min have_sub have_misc <<<${have//[^0-9]/ }
+    read want_maj want_min want_sub want_misc <<<${want//[^0-9]/ }
+
+    if [ "${have_maj}" -lt "${want_maj}" ]; then
+        return 0
+    fi
+
+    if [ "${have_maj}" -gt "${want_maj}" ]; then
+        return 1
+    fi
+
+    if [ "${have_min}" -gt "${want_min}" ]; then
+        return 2
+    fi
+
+    if [ "${have_sub}" -gt "${want_sub}" ]; then
+        return 3
+    fi
+
+    if [ "${have_maj}" -eq "${want_maj}" -a "${have_min}" -eq "${want_min}" -a "${have_sub}" -eq "${want_sub}" ]; then
+        return 4
+    fi
+
+    return 0
 }
 
 getgiturl() {
@@ -93,6 +141,7 @@ do
     if [ -d "${dir}/.git" ]; then
 	export ZDREPO="${dir}"
 	cd "${dir}"
+        source "${dir}/common/global.config"
 	break
     fi
 done
@@ -146,5 +195,7 @@ else
 	alert "ZonamaDev Update" "You are up to date"
     fi
 fi
+
+check_basebox
 
 exit $?

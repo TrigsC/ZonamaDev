@@ -1,0 +1,135 @@
+#!/bin/bash
+#
+# 27check_config - Check to see if config.lua seems sane
+#
+# Author: Lord Kator <lordkator@swgemu.com>
+#
+# Created: Mon Jul 17 07:32:51 EDT 2017
+#
+
+set -x
+config_repair_git() {
+    (
+        set -x
+        cd ${WORKSPACE}/Core3
+        rm -f MMOCoreORB/bin/conf/config.lua
+        git checkout MMOCoreORB/bin/conf/config.lua && notice "Checkout default config.lua" "config.lua reset to default from git repository"
+    )
+
+    return 0
+}
+
+config_repair() {
+    if [ "X$1" = "X--use-git" ]; then
+        config_repair_git
+        return $?
+    fi
+
+    local repair_method=$(
+	(
+	if [ -f "${WORKSPACE}/Core3/MMOCoreORB/bin/conf/config.lua.old" ]; then
+            echo -e 'FALSE\nconfig.lua.old\nUse the last copy of config.lua'
+        fi
+        echo -e "FALSE\ngit-checkout\nUse the config.lua that comes from your Core3 repository"
+	echo -e "FALSE\nMANUAL\nEdit config.lua yourself"
+	) | zenity --list --radiolist --text="How do you want to repair config.lua:" --title="Repair broken config.lua" --column="Select" --column="Method" --column="Description" --print-column=2 --width=650 --height=250
+    )
+
+    echo "Got [${repair_method}]"
+
+    if [ "${repair_method}" = "git-checkout" ]; then
+        config_repair_git
+        return $?
+    fi
+
+    if [ "${repair_method}" = "config.lua.old" ]; then
+        cp "${WORKSPACE}/Core3/MMOCoreORB/bin/conf/config.lua.old" "${WORKSPACE}/Core3/MMOCoreORB/bin/conf/config.lua" && notice "Repaired config.lua" "Restored config.lua from config.lua.old"
+        return 0
+    fi
+
+    if [ "${repair_method}" = "MANUAL" ]; then
+        local editor=$(zdcfg get visual)
+        editor=${editor:-/usr/bin/atom}
+        notice "Manual edit of config.lua" "Launching ${editor} ${WORKSPACE}/Core3/MMOCoreORB/bin/conf/config.lua\n\nPlease fix the configuration and save it to continue."
+        ${editor} ${WORKSPACE}/Core3/MMOCoreORB/bin/conf/config.lua
+        local tries=20
+        while [ "${tries}" -gt 1 ]
+        do
+            let "tries=$tries - 1"
+            if validate_config --quiet; then
+                notice "Repaired config.lua" "Successful manual edit of config.lua"
+                return 0
+            fi
+            sleep 5
+        done
+
+        notice "Manual edit of config.lua" "Timeout waiting for manual edit to fix config.lua"
+        return 1
+    fi
+
+    return 1
+}
+
+validate_config() {
+    local missing=''
+    local error=''
+    local setting=''
+    local quiet=false
+
+    if [ "X$1" == "X--quiet" ]; then
+        shift
+        quiet=true
+    fi
+
+    # Just check for existance, maybe someday check valid values?
+    for setting in MakeZone MakePing MakeStatus MakeWeb ORB ORBPort \
+        DBHost DBPort DBName DBUser DBPass DBSecret LoginPort \
+        LoginProcessingThreads LoginAllowedConnections LoginRequiredVersion \
+        MantisHost MantisPort MantisName MantisUser MantisPass MantisPrfx \
+        AutoReg ProgressMonitors PingPort PingAllowedConnections \
+        ZoneProcessingThreads ZoneAllowedConnections ZoneGalaxyID \
+        ZonesEnabled TrePath TreFiles StatusPort StatusAllowedConnections \
+        StatusInterval WebPorts WebAccessLog WebErrorLog WebSessionTimeout \
+        MaxNavMeshJobs DumpObjFiles
+    do
+        local value=$(get_config "${setting}" || echo ERROR)
+
+        if [ "X${value}" = "X" ]; then
+            missing="${missing} ${setting}"
+            break
+        else
+            if [ "X${value}" = "XERROR" ]; then
+                error="${WORKSPACE}/Core3/MMOCoreORB/bin/conf/config.lua is broken"
+                break
+            fi
+        fi
+    done
+
+    if [ -n "${error}" ]; then
+        $quiet || notice "Invalid config.lua" "${error}"
+        return 250
+    fi
+
+    if [ -n "${missing}" ]; then
+        $quiet || notice "Invalid config.lua" "config.lua is missing the following settings: ${missing}"
+        return 251
+    fi
+
+    return 0
+}
+
+check_config() {
+    # Give them three chances
+    for t in '' '' '--use-git'
+    do
+        if validate_config; then
+            break
+        fi
+
+        config_repair
+    done
+}
+
+check_config
+
+set +x
