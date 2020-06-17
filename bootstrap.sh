@@ -5,7 +5,7 @@ if [ -z "$BASH_VERSION" ]; then
 fi
 
 ZONAMADEV_URL='https://github.com/TrigsC/ZonamaDev'
-ZONAMADEV_BRANCH='release-1.4'
+ZONAMADEV_BRANCH='release-1.5'
 OS='unknown'
 
 main() {
