@@ -50,7 +50,7 @@ clone_repos() {
     do
         (
             SECONDS=0
-            git clone --progress ssh://${GERRIT_HOST}/${i}.git
+            git clone --progress https://github.com/TrigsC/Core3.git
             st=$?
             echo $st > "${status_pipe}-${i}"
             if [ "$st" -ne 0 ]; then
@@ -113,7 +113,7 @@ check_repos() {
     do
 	echo "** Check $i repo"
 
-	gerrit_url="ssh://${GERRIT_HOST}/${i}.git"
+	gerrit_url="https://github.com/TrigsC/Core3.git"
 
 	read name url junk <<< $(cd $i;git remote -v)
 
